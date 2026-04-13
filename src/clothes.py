@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from config.database import SessionLocal
 
-from ai.vision import analyze_clothes
-from ai.image_processor import process_image
+from src.ai.vision import analyze_clothes
+from src.ai.image_processor import process_image
 
 from typing import List
 

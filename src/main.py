@@ -7,8 +7,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
 # 导入 router
-from clothes import router as clothes_router
-
+from src.clothes import router as clothes_router
 
 # ================================
 # 创建 FastAPI
@@ -34,7 +33,7 @@ app.include_router(clothes_router)
 app.mount(
     "/static",
     StaticFiles(
-        directory="/home/ubuntu/MageMirror/src/static"
+        directory="src/static"
     ),
     name="static"
 )
