@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Detail</title>
+
+<style>
+
+body {
+
+    font-family: Arial;
+    background: #f5f6fa;
+    margin: 0;
+
+}
+
+.container {
+
+    padding: 30px;
+
+}
+
+.back {
+
+    color: #2f80ed;
+    cursor: pointer;
+
+}
+
+.card {
+
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+
+    width: 300px;
+    margin: auto;
+    text-align: center;
+
+}
+
+img {
+
+    width: 100%;
+    border-radius: 8px;
+
+}
+
+.info {
+
+    margin-top: 15px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<span
+    class="back"
+    onclick="history.back()">
+
+← 返回
+
+</span>
+
+<div class="card" id="card">
+
+加载中...
+
+</div>
+
+</div>
+
+<script>
+
+async function loadDetail() {
+
+    try {
+
+        const id =
+            window.location.pathname
+            .split("/")
+            .pop();
+
+        const res =
+            await fetch(
+                "/clothes/" + id
+            );
+
+        const data =
+            await res.json();
+
+        const card =
+            document.getElementById("card");
+
+        if (data.status !== "success") {
+
+            card.innerHTML =
+                "<p>加载失败</p >";
+
+            return;
+
+        }
+
+        const c =
+            data.data;
+
+        card.innerHTML =
+
+            "<img src='" +
+            c.image_url +
+            "'>" +
+
+            "<div class='info'>" +
+
+            "<p><b>名称:</b> " +
+            c.name +
+            "</p >" +
+
+            "<p><b>分类:</b> " +
+            c.category +
+            "</p >" +
+
+            "<p><b>颜色:</b> " +
+            c.color +
+            "</p >" +
+
+            "<p><b>季节:</b> " +
+            c.season +
+            "</p >" +
+
+            "<p><b>风格:</b> " +
+            c.style +
+            "</p >" +
+
+            "<p><b>品牌:</b> " +
+            c.brand +
+            "</p >" +
+
+            "</div>";
+
+    }
+
+    catch (err) {
+
+        document.getElementById("card").innerHTML =
+            "<p>异常</p >";
+
+    }
+
+}
+
+loadDetail();
+
+</script>
+
+</body>
+
+</html>

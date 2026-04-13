@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Magic Mirror</title>
+
+<style>
+
+body {
+
+    font-family: Arial;
+    margin: 0;
+    background: #f5f6fa;
+
+}
+
+.header {
+
+    text-align: center;
+    padding: 20px;
+    background: white;
+
+}
+
+.logo {
+
+    width: 80px;
+
+}
+
+.title {
+
+    font-size: 22px;
+    font-weight: bold;
+    margin-top: 10px;
+
+}
+
+.grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill, 120px);
+
+    gap: 25px;
+
+    padding: 25px;
+
+    justify-content: center;
+
+}
+
+.person {
+
+    text-align: center;
+    cursor: pointer;
+
+}
+
+.avatar {
+
+    width: 90px;
+    height: 90px;
+
+    border-radius: 50%;
+
+    background: #2f80ed;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    font-size: 36px;
+
+    color: white;
+
+    margin: auto;
+
+}
+
+.name {
+
+    margin-top: 8px;
+
+    font-size: 14px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<img src="/static/logo.png" class="logo">
+
+<div class="title">
+
+Magic Mirror
+
+</div>
+
+</div>
+
+<div id="persons" class="grid">
+
+</div>
+
+<script>
+
+async function loadPersons() {
+
+    const res =
+        await fetch("/persons");
+
+    const data =
+        await res.json();
+
+    const div =
+        document.getElementById("persons");
+
+    div.innerHTML = "";
+
+    data.data.forEach(p => {
+
+        const card =
+            document.createElement("div");
+
+        card.className = "person";
+
+        // 头像（首字）
+
+        const avatar =
+            document.createElement("div");
+
+        avatar.className = "avatar";
+
+        avatar.innerText =
+            p.name.charAt(0);
+
+        // 名字
+
+        const name =
+            document.createElement("div");
+
+        name.className = "name";
+
+        name.innerText =
+            p.name;
+
+        card.appendChild(avatar);
+
+        card.appendChild(name);
+
+        // 点击进入柜子页
+
+        card.onclick = () => {
+
+            window.location.href =
+                "/storage/" + p.id;
+
+        };
+
+        div.appendChild(card);
+
+    });
+
+}
+
+loadPersons();
+
+</script>
+
+</body>
+
+</html>

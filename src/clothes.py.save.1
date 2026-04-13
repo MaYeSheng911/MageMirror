@@ -1,0 +1,877 @@
+from fastapi import APIRouter, UploadFile, File
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from config.database import SessionLocal
+
+from ai.vision import analyze_clothes
+from ai.image_processor import process_image
+
+import os
+import uuid
+from datetime import datetime
+
+router = APIRouter()
+
+UPLOAD_DIR = "/home/ubuntu/MageMirror/uploads"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# ==========================================
+# 上传衣服（含抠图 + 强制PNG）
+# ==========================================
+
+@router.post("/upload-clothes")
+async def upload_clothes(file: UploadFile = File(...)):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        # ========= 生成唯一PNG文件 =========
+
+        file_id = str(uuid.uuid4())
+
+        file_name = f"{file_id}.png"
+
+        file_path = os.path.join(
+            UPLOAD_DIR,
+            file_name
+        )
+
+        # ========= 保存上传文件 =========
+
+        with open(file_path, "wb") as f:
+
+            content = await file.read()
+
+            f.write(content)
+
+        # ========= 抠图 =========
+
+        processed_path = process_image(file_path)
+
+        # 强制使用 PNG 文件名
+        image_name = os.path.basename(processed_path)
+
+        # ========= 插入 clothes =========
+
+        insert_clothes_sql = """
+        INSERT INTO clothes (
+            user_id,
+            name,
+            category,
+            color,
+            season,
+            style,
+            brand,
+            created_at
+        )
+        VALUES (
+            1,
+            :name,
+            'unknown',
+            'unknown',
+            'unknown',
+            'unknown',
+            'unknown',
+            :created_at
+        )
+        RETURNING id
+        """
+
+        result = db.execute(
+            text(insert_clothes_sql),
+            {
+                "name": image_name,
+                "created_at": datetime.now()
+            }
+        )
+
+        clothes_id = result.fetchone()[0]
+
+        # ========= 插入 images =========
+
+        insert_image_sql = """
+        INSERT INTO images (
+            clothes_id,
+            image_url,
+            is_primary,
+            created_at
+        )
+        VALUES (
+            :clothes_id,
+            :image_url,
+            true,
+            :created_at
+        )
+        """
+
+        db.execute(
+            text(insert_image_sql),
+            {
+                "clothes_id": clothes_id,
+                "image_url": processed_path,
+                "created_at": datetime.now()
+            }
+        )
+
+        db.commit()
+
+        # ========= AI识别 =========
+
+        ai_result = analyze_clothes(processed_path)
+
+        category = ai_result.get("category", "unknown")
+        color = ai_result.get("color", "unknown")
+        season = ai_result.get("season", "unknown")
+        style = ai_result.get("style", "unknown")
+        brand = ai_result.get("brand", "unknown")
+
+        # ========= 更新 clothes =========
+
+        update_sql = """
+        UPDATE clothes
+        SET
+            category = :category,
+            color = :color,
+            season = :season,
+            style = :style,
+            brand = :brand
+        WHERE id = :clothes_id
+        """
+
+        db.execute(
+            text(update_sql),
+            {
+                "category": category,
+                "color": color,
+                "season": season,
+                "style": style,
+                "brand": brand,
+                "clothes_id": clothes_id
+            }
+        )
+
+        db.commit()
+
+        return {
+
+            "status": "success",
+
+            "clothes_id": clothes_id,
+
+            "ai_result": ai_result
+
+        }
+
+    except Exception as e:
+
+        db.rollback()
+
+        print("ERROR:", e)
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 获取单件详情（唯一版本）
+# ==========================================
+
+@router.get("/clothes/{clothes_id}")
+def get_clothes_detail(clothes_id: int):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        query_sql = """
+        SELECT
+            c.id,
+            c.name,
+            c.category,
+            c.color,
+            c.season,
+            c.style,
+            c.brand,
+            c.created_at,
+            i.image_url
+        FROM clothes c
+        LEFT JOIN images i
+        ON c.id = i.clothes_id
+        WHERE c.id = :clothes_id
+        """
+
+        result = db.execute(
+            text(query_sql),
+            {"clothes_id": clothes_id}
+        )
+
+        row = result.fetchone()
+
+        if not row:
+
+            return {
+
+                "status": "error",
+
+                "message": "clothes not found"
+
+            }
+
+        # ========= 转换URL =========
+
+        if row.image_url:
+
+            image_name = os.path.basename(row.image_url)
+
+            image_url = (
+                f"http://16.171.9.129:8000/image/"
+                f"{image_name}"
+            )
+
+        else:
+
+            image_url = None
+
+        return {
+
+            "status": "success",
+
+            "data": {
+
+                "id": row.id,
+
+                "name": row.name,
+
+                "category": row.category,
+
+                "color": row.color,
+
+                "season": row.season,
+
+                "style": row.style,
+
+                "brand": row.brand,
+
+                "image_url": image_url,
+
+                "created_at": str(row.created_at)
+
+            }
+
+        }
+
+    except Exception as e:
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 删除衣服
+# ==========================================
+
+@router.delete("/clothes/{clothes_id}")
+def delete_clothes(clothes_id: int):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        query_sql = """
+        SELECT image_url
+        FROM images
+        WHERE clothes_id = :clothes_id
+        """
+
+        result = db.execute(
+            text(query_sql),
+            {"clothes_id": clothes_id}
+        )
+
+        image_rows = result.fetchall()
+
+        for row in image_rows:
+
+            image_path = row.image_url
+
+            if os.path.exists(image_path):
+
+                os.remove(image_path)
+
+        db.execute(
+            text("""
+            DELETE FROM images
+            WHERE clothes_id = :clothes_id
+            """),
+            {"clothes_id": clothes_id}
+        )
+
+        db.execute(
+            text("""
+            DELETE FROM clothes
+            WHERE id = :clothes_id
+            """),
+            {"clothes_id": clothes_id}
+        )
+
+        db.commit()
+
+        return {
+
+            "status": "success",
+
+            "message": f"clothes {clothes_id} deleted"
+
+        }
+
+    except Exception as e:
+
+        db.rollback()
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 衣柜网格
+# ==========================================
+
+@router.get("/clothes-grid")
+def get_clothes_grid():
+
+    db: Session = SessionLocal()
+
+    try:
+
+        result = db.execute(text("""
+        SELECT
+            c.id,
+            c.category,
+            c.color,
+            i.image_url
+        FROM clothes c
+        LEFT JOIN images i
+        ON c.id = i.clothes_id
+        ORDER BY c.created_at DESC
+        """))
+
+        clothes_list = []
+
+        for row in result:
+
+            if row.image_url:
+
+                image_name = os.path.basename(row.image_url)
+
+                image_url = (
+                    f"http://16.171.9.129:8000/image/"
+                    f"{image_name}"
+                )
+
+            else:
+
+                image_url = None
+
+            clothes_list.append({
+
+                "id": row.id,
+
+                "category": row.category,
+
+                "color": row.color,
+
+                "image_url": image_url
+
+            })
+
+        return {
+
+            "status": "success",
+
+            "count": len(clothes_list),
+
+            "data": clothes_list
+
+        }
+
+    except Exception as e:
+
+        return {
+
+            "status": "error",
+
+            "messafrom fastapi import APIRouter, UploadFile, File
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from config.database import SessionLocal
+
+from ai.vision import analyze_clothes
+from ai.image_processor import process_image
+
+import os
+import uuid
+from datetime import datetime
+
+router = APIRouter()
+
+UPLOAD_DIR = "/home/ubuntu/MageMirror/uploads"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# ==========================================
+# 上传衣服（含抠图 + 强制PNG）
+# ==========================================
+
+@router.post("/upload-clothes")
+async def upload_clothes(file: UploadFile = File(...)):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        # ========= 生成唯一PNG文件 =========
+
+        file_id = str(uuid.uuid4())
+
+        file_name = f"{file_id}.png"
+
+        file_path = os.path.join(
+            UPLOAD_DIR,
+            file_name
+        )
+
+        # ========= 保存上传文件 =========
+
+        with open(file_path, "wb") as f:
+
+            content = await file.read()
+
+            f.write(content)
+
+        # ========= 抠图 =========
+
+        processed_path = process_image(file_path)
+
+        # 强制使用 PNG 文件名
+        image_name = os.path.basename(processed_path)
+
+        # ========= 插入 clothes =========
+
+        insert_clothes_sql = """
+        INSERT INTO clothes (
+            user_id,
+            name,
+            category,
+            color,
+            season,
+            style,
+            brand,
+            created_at
+        )
+        VALUES (
+            1,
+            :name,
+            'unknown',
+            'unknown',
+            'unknown',
+            'unknown',
+            'unknown',
+            :created_at
+        )
+        RETURNING id
+        """
+
+        result = db.execute(
+            text(insert_clothes_sql),
+            {
+                "name": image_name,
+                "created_at": datetime.now()
+            }
+        )
+
+        clothes_id = result.fetchone()[0]
+
+        # ========= 插入 images =========
+
+        insert_image_sql = """
+        INSERT INTO images (
+            clothes_id,
+            image_url,
+            is_primary,
+            created_at
+        )
+        VALUES (
+            :clothes_id,
+            :image_url,
+            true,
+            :created_at
+        )
+        """
+
+        db.execute(
+            text(insert_image_sql),
+            {
+                "clothes_id": clothes_id,
+                "image_url": processed_path,
+                "created_at": datetime.now()
+            }
+        )
+
+        db.commit()
+
+        # ========= AI识别 =========
+
+        ai_result = analyze_clothes(processed_path)
+
+        category = ai_result.get("category", "unknown")
+        color = ai_result.get("color", "unknown")
+        season = ai_result.get("season", "unknown")
+        style = ai_result.get("style", "unknown")
+        brand = ai_result.get("brand", "unknown")
+
+        # ========= 更新 clothes =========
+
+        update_sql = """
+        UPDATE clothes
+        SET
+            category = :category,
+            color = :color,
+            season = :season,
+            style = :style,
+            brand = :brand
+        WHERE id = :clothes_id
+        """
+
+        db.execute(
+            text(update_sql),
+            {
+                "category": category,
+                "color": color,
+                "season": season,
+                "style": style,
+                "brand": brand,
+                "clothes_id": clothes_id
+            }
+        )
+
+        db.commit()
+
+        return {
+
+            "status": "success",
+
+            "clothes_id": clothes_id,
+
+            "ai_result": ai_result
+
+        }
+
+    except Exception as e:
+
+        db.rollback()
+
+        print("ERROR:", e)
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 获取单件详情（唯一版本）
+# ==========================================
+
+@router.get("/clothes/{clothes_id}")
+def get_clothes_detail(clothes_id: int):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        query_sql = """
+        SELECT
+            c.id,
+            c.name,
+            c.category,
+            c.color,
+            c.season,
+            c.style,
+            c.brand,
+            c.created_at,
+            i.image_url
+        FROM clothes c
+        LEFT JOIN images i
+        ON c.id = i.clothes_id
+        WHERE c.id = :clothes_id
+        """
+
+        result = db.execute(
+            text(query_sql),
+            {"clothes_id": clothes_id}
+        )
+
+        row = result.fetchone()
+
+        if not row:
+
+            return {
+
+                "status": "error",
+
+                "message": "clothes not found"
+
+            }
+
+        # ========= 转换URL =========
+
+        if row.image_url:
+
+            image_name = os.path.basename(row.image_url)
+
+            image_url = (
+                f"http://16.171.9.129:8000/image/"
+                f"{image_name}"
+            )
+
+        else:
+
+            image_url = None
+
+        return {
+
+            "status": "success",
+
+            "data": {
+
+                "id": row.id,
+
+                "name": row.name,
+
+                "category": row.category,
+
+                "color": row.color,
+
+                "season": row.season,
+
+                "style": row.style,
+
+                "brand": row.brand,
+
+                "image_url": image_url,
+
+                "created_at": str(row.created_at)
+
+            }
+
+        }
+
+    except Exception as e:
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 删除衣服
+# ==========================================
+
+@router.delete("/clothes/{clothes_id}")
+def delete_clothes(clothes_id: int):
+
+    db: Session = SessionLocal()
+
+    try:
+
+        query_sql = """
+        SELECT image_url
+        FROM images
+        WHERE clothes_id = :clothes_id
+        """
+
+        result = db.execute(
+            text(query_sql),
+            {"clothes_id": clothes_id}
+        )
+
+        image_rows = result.fetchall()
+
+        for row in image_rows:
+
+            image_path = row.image_url
+
+            if os.path.exists(image_path):
+
+                os.remove(image_path)
+
+        db.execute(
+            text("""
+            DELETE FROM images
+            WHERE clothes_id = :clothes_id
+            """),
+            {"clothes_id": clothes_id}
+        )
+
+        db.execute(
+            text("""
+            DELETE FROM clothes
+            WHERE id = :clothes_id
+            """),
+            {"clothes_id": clothes_id}
+        )
+
+        db.commit()
+
+        return {
+
+            "status": "success",
+
+            "message": f"clothes {clothes_id} deleted"
+
+        }
+
+    except Exception as e:
+
+        db.rollback()
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()
+
+
+# ==========================================
+# 衣柜网格
+# ==========================================
+
+@router.get("/clothes-grid")
+def get_clothes_grid():
+
+    db: Session = SessionLocal()
+
+    try:
+
+        result = db.execute(text("""
+        SELECT
+            c.id,
+            c.category,
+            c.color,
+            i.image_url
+        FROM clothes c
+        LEFT JOIN images i
+        ON c.id = i.clothes_id
+        ORDER BY c.created_at DESC
+        """))
+
+        clothes_list = []
+
+        for row in result:
+
+            if row.image_url:
+
+                image_name = os.path.basename(row.image_url)
+
+                image_url = (
+                    f"http://16.171.9.129:8000/image/"
+                    f"{image_name}"
+                )
+
+            else:
+
+                image_url = None
+
+            clothes_list.append({
+
+                "id": row.id,
+
+                "category": row.category,
+
+                "color": row.color,
+
+                "image_url": image_url
+
+            })
+
+        return {
+
+            "status": "success",
+
+            "count": len(clothes_list),
+
+            "data": clothes_list
+
+        }
+
+    except Exception as e:
+
+        return {
+
+            "status": "error",
+
+            "message": str(e)
+
+        }
+
+    finally:
+
+        db.close()ge": str(e)
+
+        }
+
+    finally:
+
+        db.close()

@@ -1,0 +1,113 @@
+from fastapi import APIRouter, UploadFile, File, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from config.database import SessionLocal
+import os
+import uuid
+from datetime import datetime
+
+router = APIRouter()
+
+UPLOAD_DIR = "/home/ubuntu/MageMirror/uploads"
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+# 数据库依赖
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("/upload-clothes")
+async def upload_clothes(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+
+    # ========= 保存文件 =========
+
+    file_uuid = str(uuid.uuid4())
+
+    file_ext = file.filename.split(".")[-1]
+    file_name = f"{file_uuid}.{file_ext}"
+
+    file_path = os.path.join(UPLOAD_DIR, file_name)
+
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+
+    # ========= 写入 clothes =========
+
+    insert_clothes_sql = """
+    INSERT INTO clothes (
+        name,
+        category,
+        color,
+        season,
+        style,
+        brand,
+        created_at
+    )
+    VALUES (
+        :name,
+        :category,
+        :color,
+        :season,
+        :style,
+        :brand,
+        :created_at
+    )
+    RETURNING id
+    """
+
+    result = db.execute(
+        text(insert_clothes_sql),
+        {
+            "name": file.filename,
+            "category": "unknown",
+            "color": "unknown",
+            "season": "unknown",
+            "style": "unknown",
+            "brand": "unknown",
+            "created_at": datetime.utcnow()
+        }
+    )
+
+    clothes_id = result.fetchone()[0]
+
+    # ========= 写入 images =========
+
+    insert_image_sql = """
+    INSERT INTO images (
+        clothes_id,
+        file_path,
+        created_at
+    )
+    VALUES (
+        :clothes_id,
+        :file_path,
+        :created_at
+    )
+    """
+
+    db.execute(
+        text(insert_image_sql),
+        {
+            "clothes_id": clothes_id,
+            "file_path": file_path,
+            "created_at": datetime.utcnow()
+        }
+    )
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "clothes_id": clothes_id,
+        "file_path": file_path
+    }

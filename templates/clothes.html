@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Clothes</title>
+
+<style>
+
+body {
+    font-family: Arial;
+    margin: 0;
+    background: #f5f6fa;
+}
+
+.header {
+    padding: 15px;
+    background: white;
+}
+
+.back {
+    color: #2f80ed;
+    cursor: pointer;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 150px);
+    gap: 20px;
+    padding: 20px;
+    justify-content: center;
+}
+
+.item {
+    background: white;
+    border-radius: 12px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.item img {
+    width: 100%;
+    height: 130px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.name {
+    margin-top: 8px;
+    font-size: 14px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<span class="back"
+onclick="history.back()">
+
+← 返回
+
+</span>
+
+</div>
+
+<div id="grid" class="grid"></div>
+
+<script>
+
+async function loadClothes() {
+
+    try {
+
+        // 获取 storage_id
+        const storageId =
+            window.location.pathname
+            .split("/")
+            .pop();
+
+        // 调用后端接口
+        const res =
+            await fetch(
+                "/clothes-by-storage/" +
+                storageId
+            );
+
+        const data =
+            await res.json();
+
+        const grid =
+            document.getElementById("grid");
+
+        grid.innerHTML = "";
+
+        if (
+            data.status !== "success" ||
+            data.data.length === 0
+        ) {
+
+            grid.innerHTML =
+                "<p>该柜子还没有衣服</p >";
+
+            return;
+
+        }
+
+        // 循环显示衣服
+        data.data.forEach(c => {
+
+            const div =
+                document.createElement("div");
+
+            div.className = "item";
+
+            div.innerHTML =
+
+                "<img src='" +
+                c.image_url +
+                "'>" +
+
+                "<div class='name'>" +
+                c.name +
+                "</div>";
+
+            // ⭐ 点击进入详情页
+            div.onclick = () => {
+
+                window.location.href =
+                    "/detail/" + c.id;
+
+            };
+
+            grid.appendChild(div);
+
+        });
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        document.getElementById("grid").innerHTML =
+            "<p>加载异常</p >";
+
+    }
+
+}
+
+loadClothes();
+
+</script>
+
+</body>
+
+</html>

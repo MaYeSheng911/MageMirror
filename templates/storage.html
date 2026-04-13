@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Storage</title>
+
+<style>
+
+body {
+
+    font-family: Arial;
+    margin: 0;
+    background: #f5f6fa;
+
+}
+
+.header {
+
+    background: white;
+    padding: 15px;
+
+}
+
+.back {
+
+    cursor: pointer;
+    color: #2f80ed;
+
+}
+
+.grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill, 120px);
+
+    gap: 25px;
+
+    padding: 25px;
+
+    justify-content: center;
+
+}
+
+.box {
+
+    text-align: center;
+    cursor: pointer;
+
+}
+
+.icon {
+
+    width: 80px;
+    height: 80px;
+
+    background: #2f80ed;
+
+    border-radius: 12px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: white;
+
+    font-size: 24px;
+
+    margin: auto;
+
+}
+
+.name {
+
+    margin-top: 8px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<span
+    class="back"
+    onclick="goBack()">
+
+← 返回人物
+
+</span>
+
+</div>
+
+<div id="storages" class="grid">
+
+</div>
+
+<script>
+
+const personId =
+    window.location.pathname
+        .split("/")[2];
+
+function goBack() {
+
+    window.location.href = "/";
+
+}
+
+async function loadStorages() {
+
+    const res =
+        await fetch(
+            "/storage-units/" +
+            personId
+        );
+
+    const data =
+        await res.json();
+
+    const div =
+        document.getElementById("storages");
+
+    data.data.forEach(s => {
+
+        const box =
+            document.createElement("div");
+
+        box.className = "box";
+
+        const icon =
+            document.createElement("div");
+
+        icon.className = "icon";
+
+        icon.innerText =
+            "柜";
+
+        const name =
+            document.createElement("div");
+
+        name.className = "name";
+
+        name.innerText =
+            s.name;
+
+        box.appendChild(icon);
+
+        box.appendChild(name);
+
+        box.onclick = () => {
+
+            window.location.href =
+                "/clothes-page/" + s.id;
+
+        };
+
+        div.appendChild(box);
+
+    });
+
+}
+
+loadStorages();
+
+</script>
+
+</body>
+
+</html>

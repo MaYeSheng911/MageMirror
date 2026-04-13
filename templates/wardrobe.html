@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="utf-8">
+
+<title>Magic Mirror Wardrobe</title>
+
+<style>
+
+body {
+
+    font-family: Arial;
+    margin: 20px;
+    background: #f5f6fa;
+
+}
+
+.header {
+
+    text-align: center;
+    margin-bottom: 30px;
+
+}
+
+.logo {
+
+    width: 90px;
+    margin-bottom: 10px;
+
+}
+
+.title {
+
+    font-size: 24px;
+    font-weight: bold;
+
+}
+
+.section-title {
+
+    font-size: 18px;
+    margin-top: 30px;
+    margin-bottom: 10px;
+
+}
+
+.button {
+
+    background: #2f80ed;
+    color: white;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-block;
+    margin: 5px;
+    border: none;
+
+}
+
+.button.delete {
+
+    background: #eb5757;
+
+}
+
+.section {
+
+    display: flex;
+    flex-wrap: wrap;
+
+}
+
+.grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fill, 120px);
+
+    gap: 20px;
+
+    margin-top: 15px;
+
+}
+
+.card {
+
+    width: 110px;
+
+    text-align: center;
+
+}
+
+.card img {
+
+    width: 100px;
+    height: 120px;
+
+    object-fit: contain;
+
+    background: white;
+    border-radius: 8px;
+    padding: 5px;
+
+}
+
+.card p {
+
+    font-size: 12px;
+
+}
+
+.add-box {
+
+    margin-top: 10px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<img src="/static/logo.png" class="logo">
+
+<div class="title">
+
+Magic Mirror
+
+</div>
+
+</div>
+
+<!-- ========================== -->
+<!-- 人物层 -->
+<!-- ========================== -->
+
+<div>
+
+<div class="section-title">
+
+👤 选择衣柜
+
+</div>
+
+<div id="persons" class="section"></div>
+
+<div class="add-box">
+
+<input
+    id="personName"
+    placeholder="新增人物名称">
+
+<button
+    class="button"
+    onclick="addPerson()">
+
+新增人物
+
+</button>
+
+</div>
+
+</div>
+
+<!-- ========================== -->
+<!-- 柜子层 -->
+<!-- ========================== -->
+
+<div>
+
+<div class="section-title">
+
+🗄 选择柜子
+
+</div>
+
+<div id="storages" class="section"></div>
+
+</div>
+
+<!-- ========================== -->
+<!-- 衣物层 -->
+<!-- ========================== -->
+
+<div>
+
+<div class="section-title">
+
+👕 衣物
+
+</div>
+
+<div id="clothes" class="grid"></div>
+
+</div>
+
+<script>
+
+let currentPerson = null;
+
+let currentStorage = null;
+
+
+
+
+
+// ==========================
+// 加载人物
+// ==========================
+
+async function loadPersons() {
+
+    const res =
+        await fetch("/persons");
+
+    const data =
+        await res.json();
+
+    const div =
+        document.getElementById("persons");
+
+    div.innerHTML = "";
+
+data.data.forEach(p => {
+
+    const container =
+        document.createElement("div");
+
+    container.style.display =
+        "inline-block";
+
+    const btn =
+        document.createElement("button");
+
+    btn.className = "button";
+
+    btn.innerText = p.name;
+
+    btn.onclick = () => {
+
+        currentPerson = p.id;
+
+        loadStorages(p.id);
+
+    };
+
+    // 删除按钮
+
+    const del =
+        document.createElement("button");
+
+    del.className =
+        "button delete";
+
+    del.innerText = "✕";
+
+    del.onclick = async () => {
+
+        if (!confirm(
+            "确定删除 " + p.name + " ?"
+        )) return;
+
+        await fetch(
+            "/delete-person/" + p.id,
+            {
+                method: "DELETE"
+            }
+        );
+
+        loadPersons();
+
+    };
+
+    container.appendChild(btn);
+
+    container.appendChild(del);
+
+    document
+        .getElementById("persons")
+        .appendChild(container);
+
+});
+}
+
+
+
+
+
+// ==========================
+// 新增人物
+// ==========================
+
+async function addPerson() {
+
+    const name =
+        document.getElementById("personName").value;
+
+    if (!name) return;
+
+    await fetch(
+
+        "/add-person?name=" + name,
+
+        {
+
+            method: "POST"
+
+        }
+
+    );
+
+    document.getElementById(
+        "personName"
+    ).value = "";
+
+    loadPersons();
+
+}
+
+
+
+
+
+// ==========================
+// 加载柜子
+// ==========================
+
+async function loadStorages(personId) {
+
+    const res =
+        await fetch(
+            "/storage-units/" + personId
+        );
+
+    const data =
+        await res.json();
+
+    const div =
+        document.getElementById("storages");
+
+    div.innerHTML = "";
+
+    data.data.forEach(s => {
+
+        const btn =
+            document.createElement("button");
+
+        btn.className = "button";
+
+        btn.innerText = s.name;
+
+        btn.onclick = () => {
+
+            currentStorage = s.id;
+
+            loadClothes(s.id);
+
+        };
+
+        div.appendChild(btn);
+
+    });
+
+}
+
+
+
+
+
+// ==========================
+// 加载衣物
+// ==========================
+
+async function loadClothes(storageId) {
+
+    const res =
+        await fetch(
+            "/clothes-by-storage/" + storageId
+        );
+
+    const data =
+        await res.json();
+
+    const div =
+        document.getElementById("clothes");
+
+    div.innerHTML = "";
+
+    data.data.forEach(item => {
+
+        const card =
+            document.createElement("div");
+
+        card.className = "card";
+
+        const img =
+            document.createElement("img");
+
+        img.src = item.image_url;
+
+        const text =
+            document.createElement("p");
+
+        text.innerText =
+            item.name;
+
+        card.appendChild(img);
+
+        card.appendChild(text);
+
+        div.appendChild(card);
+
+    });
+
+}
+
+
+
+
+
+// ==========================
+
+loadPersons();
+
+</script>
+
+</body>
+
+</html>
