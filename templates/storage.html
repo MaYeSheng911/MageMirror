@@ -82,6 +82,40 @@ body {
 
 }
 
+.upload-btn {
+
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    background: #2f80ed;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 32px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(47, 128, 237, 0.4);
+    transition: all 0.3s;
+    text-decoration: none;
+
+}
+
+.upload-btn:hover {
+
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(47, 128, 237, 0.6);
+
+}
+
+.upload-btn:active {
+
+    transform: scale(0.95);
+
+}
+
 </style>
 
 </head>
@@ -103,6 +137,10 @@ body {
 <div id="storages" class="grid">
 
 </div>
+
+<a href="/upload" class="upload-btn" title="上传衣物">
++
+</a>
 
 <script>
 
