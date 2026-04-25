@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 # 数据库连接地址
 # =====================================
 
-DATABASE_URL = "postgresql://magemirror_user:MageMirror2026@localhost:5432/magemirror_db"
+DATABASE_URL = "postgresql://magemirror_user:MageMirror2026@localhost:5432/mage_mirror"
 
 # =====================================
 # 创建数据库引擎

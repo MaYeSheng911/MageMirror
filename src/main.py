@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 # 导入 router
 from src.clothes import router as clothes_router
+from src.storage import router as storage_router
 
 # ================================
 # 创建 FastAPI
@@ -24,6 +25,7 @@ app = FastAPI(
 # ================================
 
 app.include_router(clothes_router)
+app.include_router(storage_router)
 
 
 # ================================
@@ -148,6 +150,21 @@ def detail_page(
 
 @app.get("/mobile-upload")
 def mobile_upload_page(request: Request):
+
+    return templates.TemplateResponse(
+        "mobile-upload.html",
+        {
+            "request": request
+        }
+    )
+
+
+# ================================
+# 上传页面（别名）
+# ================================
+
+@app.get("/upload")
+def upload_page(request: Request):
 
     return templates.TemplateResponse(
         "mobile-upload.html",
