@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from sqlalchemy import text
-from config.database import engine
+from sqlalchemy.orm import Session
+from config.database import engine, SessionLocal
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -48,7 +49,7 @@ app.mount(
 app.mount(
     "/image",
     StaticFiles(
-        directory="/home/ubuntu/MageMirror/uploads"
+        directory="uploads"
     ),
     name="images"
 )
@@ -59,7 +60,7 @@ app.mount(
 # ================================
 
 templates = Jinja2Templates(
-    directory="/home/ubuntu/MageMirror/templates"
+    directory="templates"
 )
 
 
@@ -76,6 +77,54 @@ def persons_page(request: Request):
             "request": request
         }
     )
+
+
+# ================================
+# 获取人物列表 API
+# ================================
+
+@app.get("/persons")
+def get_persons():
+    """
+    返回所有人物列表（JSON格式）
+    """
+    db: Session = SessionLocal()
+
+    try:
+        result = db.execute(
+            text("""
+            SELECT
+                id,
+                name,
+                created_at
+            FROM persons
+            ORDER BY id ASC
+            """)
+        )
+
+        persons_list = []
+
+        for row in result:
+            persons_list.append({
+                "id": row.id,
+                "name": row.name,
+                "created_at": str(row.created_at) if row.created_at else None
+            })
+
+        return {
+            "status": "success",
+            "data": persons_list
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "data": []
+        }
+
+    finally:
+        db.close()
 
 
 # ================================

@@ -15,7 +15,7 @@ from datetime import datetime
 
 router = APIRouter()
 
-UPLOAD_DIR = "/home/ubuntu/MageMirror/uploads"
+UPLOAD_DIR = "uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
